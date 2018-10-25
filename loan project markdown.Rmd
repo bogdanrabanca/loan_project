@@ -6,6 +6,7 @@ loan_data <- loan_data[,c(2,5,6,8,16,17,18,19,20,21,22,26,27,29,30,32,33,34,35,3
 loan_data <- mutate(loan_data, credit_score=(CreditScoreRangeLower+CreditScoreRangeUpper)/2)
 ```
 
+#Loan Amounts
 
 First I look at the distribution of loan amounts:
 
@@ -24,6 +25,8 @@ ggplot(loan_data,mapping = aes(x = LoanOriginalAmount))+
 ```
 
 It looks like the most common loan amount is somewhere around \$4,000, and that many loans come in round numbers or just about (hence the spikes at the \$10,000,\$15,000,\$20,000, and \$25,000 marks).
+
+#Loan amount versus ownership status
 
 Next I look at how the amount loaned varies with homeownership status. First let's see how many homeowners versus renters borrow money:
 
@@ -45,25 +48,35 @@ Just for the sake of it, this is how the data would look like if we converted to
 ggplot(loan_data,aes(x=LoanOriginalAmount,stat(density),fill=IsBorrowerHomeowner))+geom_density(alpha=.3)
 ```
 
+#Loan amount versus income range
+
 Next, I display average loans based on income:
 
 ```{r}
-loan_data %>% group_by(IncomeRange) %>% summarize(avg_loan=mean(LoanOriginalAmount)) %>% arrange(desc(avg_loan)) %>% ggplot()+geom_bar(aes(x=reorder(IncomeRange,avg_loan),y=avg_loan),stat='identity')
+loan_data %>% group_by(IncomeRange) %>% summarize(avg_loan=mean(LoanOriginalAmount)) %>% arrange(desc(avg_loan)) %>% ggplot()+geom_bar(aes(x=reorder(IncomeRange,avg_loan),y=avg_loan),stat='identity')+coord_flip()
 ```
 
 Not surprisingly, loan amounts are higher the more income a borrower has. The same point can be seen if we look at the distribution of loan amounts by income:
 
 ```{r}
-ggplot(loan_data)+
-+     geom_freqpoly(aes(x=LoanOriginalAmount,color=IncomeRange),size=1,bins=10)
+ggplot(loan_data)+geom_freqpoly(aes(x=LoanOriginalAmount,color=IncomeRange),size=1,bins=10)
 ```
+
+This chart is a bit crowded, so another way to look at the same data is to break the chart into separate income levels:
+
+```{r}
+ggplot(loan_data)+geom_freqpoly(aes(x=LoanOriginalAmount),size=1,bins=10)+facet_wrap(~IncomeRange,nrow=4)
+```
+This shows that the '\$0' and the 'Not employed' have made far fewer loans than the other categories (indeed, so few that the chart doesn't really help us in determining the distribution of loan amounts for these categories). It's also clear that most loans for the \$1-50,000 range are below \$5,000 (those distributions are strongly skewed to the right), whereas dstributions for the two highest income ranges are much more even.  
+
+
 Looking at the income levels, it seems strange that there is an income range called '$0', especially when 'Not employed' (and 'Not displayed' is also available). Let's look closer at datapoints with this level:
 
 ```{r}
 loan_data %>% filter(IncomeRange=='$0') %>% head(20)
 ```
 
-It looks like every borrower with this level has an unverified income, and further that dent-to-income data is not available. Let's make sure this is right. It turns out there are only 23 entries where income is \$0 and income can be verified, and there are no entries where income is \$0 and debt-to-income is populated. 
+It looks like every borrower with this level has an unverified income, and further that debt-to-income (DTI, for short) data is not available. Let's make sure this is right. It turns out there are only 23 entries where income is \$0 and income can be verified, and there are no entries where income is \$0 and DTI is populated. 
 ```{r}
 loan_data %>% filter(IncomeRange=='$0'& IncomeVerifiable!='False') %>% count()
 ```
@@ -76,12 +89,12 @@ However, there are whose income is not verifiable even if income is a valid valu
 loan_data %>% filter(IncomeRange!='$0'& IncomeVerifiable=='False') %>% count()
 ```
 
-Furthermore, debt-to-income data is available for every borrower with a non-\$0 income:
+Furthermore, DTI data is available for every borrower with a non-\$0 income:
 ```{r}
 loan_data %>% filter(IncomeRange!='$0'& DebtToIncomeRatio=='NA') %>% count()
 ```
 
-This is just something to keep in mind if I do anything with debt-to-income information.
+This is just something to keep in mind if I do anything with DTI information.
 
 Going back to the relation between income categories and loan count or amount, unemployed persons and people whose income is listed as \$0 made far fewer loans than other income categories:
 
@@ -91,7 +104,7 @@ ggplot(loan_data)+
 +     geom_bar(aes(x=IncomeRange))
 ```
 
-This is no surprise: given what we have seen before about \$0 income category, it sounds like these are just borrowers whose income could not be verified (and where there is no data on their debt-to-income ratio). It makes sense there will be few people like this whose loan applications will be accepted. In fact, since it's not clear what income these borrowers really have, I will leave them aside for now (I won't take them out of the data frame however, since these data points could be useful for other questions).
+This is no surprise: given what we have seen before about \$0 income category, it sounds like these are just borrowers whose income could not be verified (and where there is no data on their DTI ratio). It makes sense there will be few people like this whose loan applications will be accepted. In fact, since it's not clear what income these borrowers really have, I will leave them aside for now (I won't take them out of the data frame however, since these data points could be useful for other questions).
 
 However, I'll look in more detail at the other category that is less likely to get loans - the unemployed:
 ```{r}
@@ -104,15 +117,16 @@ loan_data %>% filter(IncomeRange=='Not employed'&LoanOriginalAmount>5000) %>% gr
 
 Most of the higher loans incurred by unemployed persons were for the purpose of debt consolidation and business (codes 1 and 3, respectively) - although one loan is to buy/fix a boat, and another is for an engagement ring. As an aside, this strikes me as a bad classification, since unemployed people might have any level of income from sources other than a job (which might explain the boat).
 
-##Heading
+#Income range and DTI
 
 I turn next to the analizing the relationship between income range and debt-to-income ratio.
 ```{r}
 ggplot(loan_data)+geom_freqpoly(aes(x=DebtToIncomeRatio,color=IncomeRange),bins=100)
 ```
-This is not very illuminating because the outliers make the main part of the chart unreadable. We can see however a spike at value 10 (meaning 'has a debt 10 times or higher than income'!), which seems to be elicited by people in the lowest income range. Also the warning above the chart is entirely expected - these are the borrowers who don't have a valid DTI entry. (That's also why the \$0 category is missing completely from the chart). We can also try to get more insight into the distributions of DTI based on income range by using boxplots:
+This is not very illuminating because the outliers make the main part of the chart unreadable. We can see however a spike at value 10 (meaning 'has a debt 10 times or higher than income'!), which seems to be elicited by people in the lowest income range. Also the warning above the chart is entirely expected - these are the borrowers who don't have a valid DTI entry. (That's also why the \$0 category is missing completely from the chart). We can also try to get more insight into the distributions of DTI based on income range by using boxplots (this time I explicitly filter the '$0' category out of the data:
+
 ```{r}
-ggplot(loan_data)+geom_boxplot(aes(x=IncomeRange,y=DebtToIncomeRatio))
+loan_data %>%  filter(IncomeRange!='$0') %>% ggplot()+geom_boxplot(aes(x=IncomeRange,y=DebtToIncomeRatio))+coord_flip()
 ```
 
 This graph is not very useful in terms of differences in the median (any differences here are dwarfed by outliers) but it does suggest a huge difference regarding the highest quartiles in different income levels: even high DTI higher income borrowers are very close to the median - see for example the folks making over \$100,000, who are mostly clustered below DTI=1.25. In contrast, around 25% of borrowers who make under \$25,000 seem to have a DTI higher than that!
@@ -124,7 +138,7 @@ ggplot(loan_data)+
   coord_cartesian(xlim=c(-.5,1.25))
 ```
 
-People in lower income ranges have higher debt-to-income ratios, at least when outliers are excluded (the spikes in the 'not employed' frequency is probably due to the lower number of people in this catgegory).There are some people who have a negative debt-to-income ratio - not sure what that means. 
+People in lower income ranges have higher DTI ratios, at least when outliers are excluded (the spikes in the 'not employed' frequency is probably due to the lower number of people in this category). There are some people who have a negative DTI ratio - not sure what that means. 
 
 Now let's look at the most extreme outliers:
 ```{r}
@@ -134,7 +148,7 @@ As expected, most people with the highest DTI are in the lowest income category.
 
 A big caveat here is that we cannot really derive conclusions about the relationship between income level and DTI for the population as a whole. Since DTI is an important factor in deciding whether an applicant will get a loan, our dataset is probably skewed towards people who have better-than-average DTI ratios (One plausible possibility though is that the DTI gap between lower and higher income people is even higher for the population as a whole - since a higher income person with a high DTI is more likely to get a loan - and so appear in our data - than a lower income person with the same high DTI).
 
-##Heading
+# Loan Categories
 
 Next I look at loan category. First I add a column to the tibble that translates loan category code:
 
@@ -189,7 +203,6 @@ loan_data$borrower_late <- as.character(loan_data$borrower_late)
 loan_data %>% filter(borrower_late >0) %>% ggplot()+geom_bar(aes(x=IsBorrowerHomeowner,fill=borrower_late),position='fill')
 ```
 
-
 #Homeownership versus credit score and DTI
 
 ```{r}
@@ -203,3 +216,55 @@ ggplot(loan_data)+geom_point(aes(x=EmploymentStatusDuration,y=StatedMonthlyIncom
 +     coord_cartesian(xlim=c(0,360),ylim=c(0,200000))+geom_hline(yintercept=mean(loan_data$StatedMonthlyIncome*12),color='red',size=2)
 ```
 It looks like people who stayed longer in the same job tend to make closer to the average wage. 
+
+#*Available bank credit and revolving credit percentage versus default*(MAYBE TAKE THIS OUT)
+
+Next I try to see if there is a relationship between available bank credit, the percentage of credit used, and default:
+
+```{r}
+loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot(aes(x=AvailableBankcardCredit,y=RevolvingCreditBalance,color=default))+geom_point(alpha=1/3)+coord_cartesian(xlim=c(0,75000),ylim=c(0,75000))
+```
+
+This chart is too crowded, so I switch to a density plot and look at the relationships separately:
+```{r}
+loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot()+geom_density(aes(x=AvailableBankcardCredit,fill=default),alpha=.2)+coord_cartesian(xlim=c(0,20000))
+
+```
+
+A higher proportion of defaults happened when bororowers had less bank credit. 
+
+```{r}
+loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot()+geom_density(aes(x=RevolvingCreditBalance,fill=default),alpha=.2)+coord_cartesian(xlim=c(0,60000))
+```
+
+*It's only when revolving balance is really high (around \$45,000) where a higher percentage of these mortgages default. What is going on with this chart? one of the density plots seems bigger than the other even though both should have the same area. Maybe this is not a good plot to use.*
+
+#Revolving credit 
+
+I look next at the distribution of revolving credit percentage:
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization))
+
+```
+
+This looks like it has some extreme outliers. Let's focus on these first:
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization))+coord_cartesian(x=c(2,8),y=c(0,50))
+
+```
+It looks like some people utilized over 200% of their revolving balance, but this number is very small (again, it makes sense since these percentages make it less likely for a loan to be approved).
+
+Now let's look at the bulk of the data:
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization),binwidth=.1)+coord_cartesian(x=c(0,2))
+
+```
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization),binwidth=.01)+coord_cartesian(x=c(0,2))
+```
+
+
