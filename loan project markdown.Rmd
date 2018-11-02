@@ -225,19 +225,36 @@ Next I try to see if there is a relationship between available bank credit, the 
 loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot(aes(x=AvailableBankcardCredit,y=RevolvingCreditBalance,color=default))+geom_point(alpha=1/3)+coord_cartesian(xlim=c(0,75000),ylim=c(0,75000))
 ```
 
-This chart is too crowded, so I switch to a density plot and look at the relationships separately:
+This chart is too crowded, so I switch to a histogram plot and look at the relationships separately:
 ```{r}
-loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot()+geom_density(aes(x=AvailableBankcardCredit,fill=default),alpha=.2)+coord_cartesian(xlim=c(0,20000))
+loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot()+geom_histogram(aes(x=AvailableBankcardCredit,fill=default),binwidth=1000,alpha=.2)+coord_cartesian(xlim=c(0,20000))
 
 ```
 
-A higher proportion of defaults happened when bororowers had less bank credit. 
+Still not good enough - for two reasons: the number of defaults is so small that it's unclear what's going on when AvailableBankCredit>5000, and second because y-axis measures count so I cannot tell if the proportion of defaults versus completed loans changes as credit limit increases. So I change the y-axis to proportions:
 
 ```{r}
-loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% ggplot()+geom_density(aes(x=RevolvingCreditBalance,fill=default),alpha=.2)+coord_cartesian(xlim=c(0,60000))
+library(gridExtra)
+
+plot1 <- loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% filter(default==0) %>% ggplot(aes(x=AvailableBankcardCredit))+geom_histogram(aes(y=stat(count/sum(count))),binwidth=200,alpha=.7,fill='Blue')+coord_cartesian(xlim=c(0,20000),ylim=c(0,.2))
+
+plot2 <- loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% filter(default==1) %>% ggplot(aes(x=AvailableBankcardCredit))+geom_histogram(aes(y=stat(count/sum(count))),binwidth=200,alpha=.7,fill='Red')+coord_cartesian(xlim=c(0,20000),ylim=c(0,.2))
+
+grid.arrange(plot1,plot2,ncol=2)
 ```
 
-*It's only when revolving balance is really high (around \$45,000) where a higher percentage of these mortgages default. What is going on with this chart? one of the density plots seems bigger than the other even though both should have the same area. Maybe this is not a good plot to use.*
+It does look like a higher proportion of defaults happens when bank credit is low - see for example the first two bins in each histogram: about 14 percent of people who have not defaulted on their loans are in those bins, while 25 percent of people who did default are in the first two bins (meaning they had total available bank credit of 400 or less). 
+
+At the other end of the spectrum, there are a few high x-values where a higher proportion of defaulters is concentrated:
+
+```{r}
+plot1 <- loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% filter(default==0) %>% ggplot(aes(x=AvailableBankcardCredit))+geom_histogram(aes(y=stat(count/sum(count))),binwidth=200,alpha=.7,fill='Blue')+coord_cartesian(xlim=c(20000,60000),ylim=c(0,.01))
+
+plot2 <- loan_data %>% mutate (default=as.character(ifelse(LoanStatus=='Defaulted',1,0))) %>% filter(default==1) %>% ggplot(aes(x=AvailableBankcardCredit))+geom_histogram(aes(y=stat(count/sum(count))),binwidth=200,alpha=.7,fill='Red')+coord_cartesian(xlim=c(20000,60000),ylim=c(0,.01))
+
+grid.arrange(plot1,plot2,ncol=2)
+```
+
 
 #Revolving credit 
 
@@ -265,6 +282,24 @@ ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization),binwidth=.1)+coord_c
 
 ```{r}
 ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization),binwidth=.01)+coord_cartesian(x=c(0,2))
+```
+
+Next I break down the histogram based on income range: 
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization),binwidth=.01)+coord_cartesian(x=c(0,1.25))+facet_wrap(~IncomeRange,nrow=4)
+```
+
+It's striking that a lot more income-earners in the lower ranges have a very low(close to 0) revolving balance. Comparatively, quite a few high-earners have high revolving balances (see charts for people making over \$75,000). Perhaps we can see this better if I display percentages on the y-axis instead of raw counts:
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization,y=stat(count/sum(count))),binwidth=.01)+coord_cartesian(x=c(0,1.25))+facet_wrap(~IncomeRange,nrow=4)
+```
+
+One explanation might be that higher earners just make more money so they can afford to run a higer bill, but since they are also likely to have a higher credit limit, this explanation is not entirely satisfactory. Perhaps here too, just as before, the expplanation is that for low-income earners, having a low revolving balance is almost necessary for getting any kind of loan approved by the bank, while higher income owners are not rejected simply because they have a high credit card bill. Interestingly, if we further distinguish between homeowners and renters, it looks like the higher your revolving balance, the more likely you are to own your home (at all income levels):
+
+```{r}
+ggplot(loan_data)+geom_histogram(aes(x=BankcardUtilization,y=stat(count/sum(count)),fill=IsBorrowerHomeowner),binwidth=.01)+coord_cartesian(x=c(0,1.25))+facet_wrap(~IncomeRange,nrow=4)
 ```
 
 
